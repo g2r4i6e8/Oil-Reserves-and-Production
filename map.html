@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Oil Reserves (height) and Oil Production (color) by Country</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://api.mapbox.com/mapbox-gl-js/v3.2.0/mapbox-gl.js"></script>
+<link href="https://api.mapbox.com/mapbox-gl-js/v3.2.0/mapbox-gl.css" rel="stylesheet" />
+<style>
+  body { margin: 0; padding: 0; font-family: sans-serif; background: #ffffff; }
+  #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+
+  .title {
+    position: absolute;
+    top: 15px;
+    left: 50%;
+	transform: translateX(-50%);
+    background: rgba(255, 255, 255, 0.9);
+    padding: 10px 16px;
+    border-radius: 6px;
+    font-size: 22px;
+    font-weight: 600;
+    z-index: 1;
+  }
+
+  .legend {
+	position: absolute;
+	bottom: 20px;
+	left: 20px;
+	background: rgba(255, 255, 255, 0.9);
+	padding: 12px 14px;
+	border-radius: 6px;
+	font-size: 12px;
+	line-height: 1.4;
+	z-index: 1;
+	width: 180px;
+  }
+
+	.legend-title {
+	  font-size: 16px;
+	  font-weight: 600;
+	  margin-bottom: 10px;
+	  text-align: left;
+	}
+
+	.legend-section {
+	  margin-bottom: 10px;
+	}
+
+	.legend-label {
+	  margin-bottom: 4px;
+	}
+
+	.legend-gradient {
+	  width: 100%;
+	  height: 10px;
+	  background: linear-gradient(to right, #e0f3ff, #0077cc);
+	  border-radius: 3px;
+	}
+
+	.legend-scale {
+	  display: flex;
+	  justify-content: space-between;
+	  font-size: 12px;
+	  color: #444;
+	  margin-top: 4px;
+	}
+	
+	.legend-height-scale {
+	  display: flex;
+	  align-items: center;
+	  justify-content: space-between;
+	  margin-top: 4px;
+	}
+
+	.legend-height-gradient {
+	  width: 100%;
+	  height: 10px;
+	  background: linear-gradient(to right, #ccc, #555);
+	  border-radius: 3px;
+	}
+
+	.legend-note {
+	  text-align: left;
+	  font-size: 12px;
+	}
+	
+	.source {
+	  text-align: left;
+	  font-size: 12px;
+	  margin-top: 20px;
+	}
+  
+  .popup {
+	max-width:250px; font-size:13px;
+  }
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+<div class="title">Oil Reserves (height) and Oil Production (color) by Country, 2025</div>
+<div class="legend">
+  <div class="legend-title">Legend</div>
+  <div class="legend-section">
+    <div class="legend-label"><strong>Color:</strong> oil production, bbl/day</div>
+    <div class="legend-gradient"></div>
+    <div class="legend-scale">
+      <span>1</span>
+      <span>6.5M</span>
+      <span>13M</span>
+    </div>
+  </div>
+  <div class="legend-section">
+    <div class="legend-label"><strong>↕ Height:</strong> oil reserves, mln bbl</div>
+	<div class="legend-height-gradient"></div>
+    <div class="legend-scale">
+      <span>1</span>
+      <span>304,000</span>
+    </div>
+  </div>
+  <div class="legend-note"><strong style="color: #555">Gray:</strong> no data</div>
+  <div class="source"><strong>Data Source: </strong><a href=https://en.wikipedia.org/wiki/List_of_countries_by_proven_oil_reserves>List of countries by proven oil reserves (Wikipedia)</a></div>
+</div>
+
+
+<script>
+mapboxgl.accessToken = 'pk.eyJ1IjoibWtydDQiLCJhIjoiY2x5a24zdmc0MGhzdjJqcjVqZ2E4b3E3byJ9.l90wgBxygA2sG8Xl53kidw'; // вставь свой токен
+
+const map = new mapboxgl.Map({
+  container: 'map',
+  style: {
+    version: 8,
+    name: 'blank-style',
+    sources: {},
+    layers: [
+      {
+        id: 'background',
+        type: 'background',
+        paint: { 'background-color': '#ffffff' }
+      }
+    ]
+  },
+  center: [20, 20],
+  zoom: 1.2,
+  pitch: 60,
+  bearing: -20,
+  renderWorldCopies: false // Отключает повтор мира (фон больше не дублируется)
+});
+
+map.on('load', () => {
+  map.addSource('countries', {
+    type: 'geojson',
+    data: 'countries_wData.geojson'
+  });
+
+  map.addLayer({
+    id: 'countries-3d',
+    type: 'fill-extrusion',
+    source: 'countries',
+    paint: {
+      'fill-extrusion-color': [
+		  'case',
+		  // если нет production или оно null
+		  ['any', ['!', ['has', 'oil_production']], ['==', ['get', 'oil_production'], null]],
+		  '#aaaaaa',
+		  // иначе градиент по значению
+		  [
+			'interpolate',
+			['linear'],
+			['get', 'oil_production'],
+			0, '#e0f3ff',
+			13000000, '#0077cc'
+		  ]
+		],
+      'fill-extrusion-height': [
+        '*',
+        ['coalesce', ['get', 'oil_reserves'], 0],
+        10
+      ],
+      'fill-extrusion-opacity': 0.95
+    }
+  });
+  
+  const popup = new mapboxgl.Popup({
+      closeButton: false,
+      closeOnClick: false
+    });
+
+    map.on('mousemove', 'countries-3d', (e) => {
+      map.getCanvas().style.cursor = 'pointer';
+      const p = e.features[0].properties;
+      popup.setLngLat(e.lngLat)
+        .setHTML(`
+          <strong>${p.name}</strong><br>
+          Oil reserves: ${p.oil_reserves.toLocaleString()} mln bbl<br>
+          Oil production: ${p.oil_production / 1_000_000} mln bbl/day
+        `)
+        .addTo(map);
+    });
+
+    map.on('mouseleave', 'countries-3d', () => {
+      map.getCanvas().style.cursor = '';
+      popup.remove();
+    });
+});
+
+
+</script>
+
+</body>
+</html>
